@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ==========================================
+// المؤسسات (Organizations) - Multi-Tenant
+// ==========================================
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  members      Member[]
+  transactions Transaction[]
+  settings     OrgSettings?
+
+  financialMedia     FinancialMedium[]
+  subscriptionTypes  SubscriptionType[]
+  subscriptionDues   SubscriptionDue[]
+  voucherSequences   VoucherSequence[]
+}
+
+// ==========================================
+// المستخدمون (Users)
+// ==========================================
+
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("OFFICER")
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdTransactions Transaction[] @relation("TransactionCreator")
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+// ==========================================
+// الأعضاء (Members)
+// ==========================================
+
+
+model Member {
+  id             String         @id @default(uuid())
+  memberCode     String
+  fullName       String
+  nationalId     String?
+  gender         String         @default("MALE")
+  phone          String
+  whatsapp       String         @default("")
+  email          String?
+  city           String
+  address        String?
+  job            String?
+  membershipType String         @default("MEMBER")
+  status         String         @default("ACTIVE")
+  joinDate       DateTime       @default(now())
+  monthlySubscription Float?   @default(20.0)
+  additionalData String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+  subscriptionDues SubscriptionDue[] @relation("MemberDues")
+
+  @@unique([organizationId, memberCode])
+  @@index([organizationId])
+  @@index([fullName])
+  @@index([status])
+}
+
+// ==========================================
+// المعاملات المالية (Transactions)
+// ==========================================
+
+
+model Transaction {
+  id            String               @id @default(uuid())
+  date          DateTime
+  type          String
+  direction     String
+  amount        Float
+  category      String
+  description   String?
+  paymentMethod String               @default("نقدي")
+  
+  // New accounting fields
+  voucherNumber String?
+  status        String               @default("ACTIVE") // ACTIVE, REVERSED
+  reversalReason String?
+  
+  reversalOfId  String?              @unique
+  reversalOf    Transaction?         @relation("TransactionReversal", fields: [reversalOfId], references: [id])
+  revertedBy    Transaction?         @relation("TransactionReversal")
+
+  attachmentUrl String?
+
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  memberId String?
+  member   Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  mediumId String?
+  medium   FinancialMedium? @relation(fields: [mediumId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("TransactionCreator", fields: [createdById], references: [id])
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  subscriptionDueId String?
+  subscriptionDue   SubscriptionDue? @relation(fields: [subscriptionDueId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, date])
+  @@index([organizationId, type])
+  @@index([memberId])
+  @@index([voucherNumber])
+}
+
+// ==========================================
+// الوسائل المالية (Financial Media - Cashbox/Bank)
+// ==========================================
+model FinancialMedium {
+  id             String   @id @default(uuid())
+  name           String
+  type           String   @default("CASH") // CASH, BANK
+  accountNumber  String?
+  balance        Float    @default(0)
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  transactions   Transaction[]
+
+  @@index([organizationId])
+}
+
+// ==========================================
+// أنواع الاشتراكات (Subscription Types)
+// ==========================================
+model SubscriptionType {
+  id             String   @id @default(uuid())
+  name           String
+  amount         Float
+  period         String   @default("MONTHLY") // MONTHLY, YEARLY, CUSTOM
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  dues           SubscriptionDue[]
+
+  @@index([organizationId])
+}
+
+// ==========================================
+// استحقاقات الاشتراكات (Subscription Dues)
+// ==========================================
+model SubscriptionDue {
+  id             String   @id @default(uuid())
+  dueDate        DateTime
+  periodText     String   // e.g., "Feb 2026"
+  amount         Float
+  status         String   @default("PENDING") // PENDING, PAID, PARTIAL
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  memberId       String
+  member         Member   @relation("MemberDues", fields: [memberId], references: [id], onDelete: Cascade)
+
+  subscriptionTypeId String
+  subscriptionType   SubscriptionType @relation(fields: [subscriptionTypeId], references: [id])
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  payments       Transaction[]
+
+  @@index([organizationId])
+  @@index([memberId])
+}
+
+// ==========================================
+// ترقيم السندات (Voucher Sequences)
+// ==========================================
+model VoucherSequence {
+  id             String   @id @default(uuid())
+  prefix         String
+  nextNumber     Int      @default(1)
+  type           String   // RECEIPT, PAYMENT, CONVEYANCE, etc.
+  format         String   @default("{PREFIX}-{NUMBER}")
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, type])
+}
+
+// ==========================================
+// إعدادات المؤسسة (Organization Settings)
+// ==========================================
+model OrgSettings {
+  id                 String  @id @default(uuid())
+  registrationNumber String?
+  address            String?
+  phone              String?
+  email              String?
+  website            String?
+  memberIdStart      Int     @default(1)
+  printHeaderTitle   String?
+  extraSettings      String?
+
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,58 @@
+/* Global Styles */
+
+/* Print Styles */
+@media print {
+    body {
+        background-color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Force all scrollable containers to expand fully for printing */
+    .overflow-x-auto,
+    .overflow-y-auto,
+    .overflow-auto,
+    .overflow-hidden,
+    [class*="max-h-"] {
+        overflow: visible !important;
+        max-height: none !important;
+    }
+
+    /* Ensure tables break cleanly across pages */
+    table {
+        page-break-inside: auto;
+        width: 100% !important;
+    }
+
+    tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+
+    thead {
+        display: table-header-group;
+    }
+
+    tfoot {
+        display: table-footer-group;
+    }
+}
+
+/* Custom scrollbar for modals and lists */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
